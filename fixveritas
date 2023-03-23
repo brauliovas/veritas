@@ -106,10 +106,8 @@ echo "-------- The following resources are faulted.....---------"
 for res in `hares -list State=FAULTED| cut -f 1`
 do
 echo "--------------------------------------------------------------------"
-echo "Resource: $res"
+echo "Resource: $res" which belongs to Service group: `hares -value $res Group`
 ResourceType=`hares -value $res Type`
-ResourceMountpoint=`hares -value $res MountPoint`
-ResourceDiskgroup=`hares -value $res BlockDevice | cut -f5 -d/`
 
 function isDGimported {
       echo "Checking if Disk group is imported..."
@@ -134,25 +132,60 @@ function isDGimported {
       fi
 }
 
+function ismounted {
+      echo "Checking if Filesystem is mounted"
+      if [ df -h $ResourceMountpoint ]; then
+       echo "The Filesystem is mounted"
+      else
+       echo "The filesystem is not mounted"
+       echo "We need to check if the mountpoint $ResourceMountpoint  exists"
+        if [ $ResourceMountpoint ]; then
+          echo "The mountpoint/folder $ResourceMountpoint exists"
+        else
+          echo "The mountpoint does not exist"
+          echo "This could be either because the folder does not exist or because another 'Mount' dependecy resource is not mounted"
+          echo "either, check this mountpoint dependencies"
+          hares -dep $res
+        fi
+      fi
+}
+
+function checkResourceDeps {
+      for Dep in `hares -dep $res | awk '{split($1,a,/%/); print a[2], $3}' | grep -vi child | sed 's/ //g'`
+      do
+       if [ `hares -state $Dep | grep -i faulted` ]; then
+         echo "Dependency $Dep is: Faulted"
+       else
+         echo "Dependency $Dep is: Not Faulted"
+       fi
+      done
+}
+
+
 case $ResourceType in
  Application)
-      echo "Since the Resource $res is of type $ResourceType, Contact Application team, specifically"
+      echo "Since the Resource $res is of type $ResourceType, Contact Application team"
       echo "they need to check the scripts `hares -value $res StartProgram` and `hares -value $res StopProgram`"
+      echo "unless there are issues with dependencies of course"
+      echo "if any of these Child Dependencies are faulty, thats probably the problem"
+      checkResourceDeps
       ;;
+
+
  Mount)
+      ResourceMountpoint=`hares -value $res MountPoint`
       echo "Since the Resource $res is of type $ResourceType, This is what we need to do:"
-      echo "First, we need to check if the mountpoint $ResourceMountpoint  exists"
-      if [ $ResourceMountpoint ]; then echo "The mountpoint $ResourceMountpoint exists" ; else echo "The mountpoint does not exist"; fi
+      ismounted # Calling function to check if this is mounted
       echo "Second, we need to check if the Disk group $ResourceDiskgroup where this mounts is imported"
-      isDGimported
+      isDGimportedi # Calling function to check if the disk group is imported
       ;;
 
  DiskGroup)
+      ResourceDiskgroup=`hares -value $res BlockDevice | cut -f5 -d/`
       echo "Since the Resource $res is of type $ResourceType, This is what we need to do:"
       echo "Is the Disk group $ResourceDiskgroup imported?"
       isDGimported
-
-;;
+      ;;
 esac
 
 #echo "Removing Faulted Status from Resource... `hares -clear $res"
@@ -167,7 +200,7 @@ echo "2 - Check if neccesary VCS files are present on the OS."
 echo "3 - Check if VCS services are running"
 echo "4 - Check what Veritas product is installed"
 echo "5 - Check VCS variables"
-echo "6 - Check the status of a resource"
+echo "6 - Check FAULTED resources"
 read response;
 case $response in
 1) checkVCSModules;;
