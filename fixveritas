@@ -1,0 +1,121 @@
+#!/bin/bash
+# Created by Braulio Vasquez
+# Email: braulio.vasquez.solano@intl.att.com
+# Date: 09/26/2022
+
+# Defining color codes
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+WHITE='\033[0;37m'
+RESET='\033[0m'
+
+#Using one array for each: vcs modules, packages, files and services
+
+declare -a vcsmodules=(
+[0]=vxodm
+[5]=vxfs
+[1]=vxfen
+[2]=gab
+[3]=vxspec
+[4]=vxio
+[5]=vxdmp
+[6]=vxcafs
+[7]=vxportal
+[8]=fdd
+[9]=vxfs
+)
+
+# Grouping all functions
+
+function checkVCSModules {
+
+echo  "-------- Checking if all modules for VCS are loaded --------"
+for module in ${vcsmodules[@]}
+do
+ echo "-------- Checking if module " $module " is loaded --------"
+  if [[ `lsmod | grep -w $module` ]];then
+  echo -e "${GREEN}It seems that "$module " is loaded${RESET}"
+ else
+  echo -e "${RED}Module: "$module" is not loaded${RESET}"
+  kofile=($module.ko)
+  echo "--- Checking if the ko file exists for module" $module " on the Server ---"
+    if [[ `find  /lib/modules/$(uname -r)/veritas/ -iname $kofile`  ]];then
+    echo "The module file: "$kofile "exists, we just need to load it..."
+    echo "Loading module: "$module " now"
+#    modprobe $module
+    else
+     echo -e "${RED}The file " $kofile "does not exist for module${RESET}" $module
+     echo "You need to run the veritas script which will install all missing files/modules"
+    fi
+ fi
+done
+}
+
+function checkVCSVariables {
+
+echo "The following variables should have a value of one in the config files"
+echo "In file /etc/sysconfig/llt"
+echo "LLT_START=1"
+echo "LLT_STOP=1"
+echo "In file /etc/sysconfig/gab"
+echo "GAB_START=1"
+echo "GAB_STOP=1"
+echo "In file /etc/sysconfig/vcs"
+echo "VCS_START=1"
+echo "VCS_STOP=1"
+echo "In file /etc/sysconfig/vxfen"
+echo "VXFEN_START=1"
+echo "VXFEN_STOP=1"
+
+echo "-------- Assigning correct value to VCS variables....--------"
+sleep 1
+sed -i 's/LLT_START=0/LLT_START=1/g' /etc/sysconfig/llt
+sed -i 's/LLT_STOP=0/LLT_STOP=1/g' /etc/sysconfig/llt
+sed -i 's/GAB_START=0/GAB_START=1/g' /etc/sysconfig/gab
+sed -i 's/GAB_STOP=0/GAB_STOP=1/g' /etc/sysconfig/gab
+sed -i 's/VCS_START=0/VCS_START=1/g' /etc/sysconfig/vcs
+sed -i 's/VCS_STOP=0/VCS_STOP=1/g' /etc/sysconfig/vcs
+sed -i 's/VXFEN_START=0/VXFEN_START=1/g' /etc/sysconfig/vxfen
+sed -i 's/VXFEN_STOP=0/VXFEN_STOP=1/g' /etc/sysconfig/vxfen
+
+}
+
+function restartingVCSservices {
+echo "-------- Restarting all VCS related services in the correct order --------"
+
+service vcs stop ;service vxfen stop ;service gab stop ;service llt stop
+service llt start;service gab start;service vxfen start;service vcs start
+
+
+echo "-------- Restarting LLT and GAB in the required order....--------"
+
+gabconfig -U
+lltconfig -U
+lltconfig -c
+gabconfig -c
+
+
+echo "-------- Showing VCS related services status....-------- "
+
+service vcs status | grep Active
+service vxfen status| grep Active
+service gab status| grep Active
+service llt status | grep Active
+
+}
+
+echo "Select one of the options below:"
+echo "1 - Check if VCS modules are loaded"
+echo "2 - Check if neccesary VCS files are present on the OS."
+echo "3 - Check if VCS services are running"
+echo "4 - Check what Veritas product is installed"
+echo "5 - Check VCS variables"
+read response;
+case $response in
+1) checkVCSModules;;
+2) checkVCSFiles;;
+3) checkVCSServices;;
+4) checkVCSRPMs;;
+5) checkVCSVariables;;
+esac
