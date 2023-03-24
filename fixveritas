@@ -1,3 +1,4 @@
+
 #!/bin/bash
 # Created by Braulio Vasquez
 # Email: braulio_3ri@hotmail.com
@@ -9,6 +10,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 WHITE='\033[0;37m'
 RESET='\033[0m'
+BLUE='\033[0;34m'
 
 #Using one array for each: vcs modules, packages, files and services
 
@@ -102,12 +104,14 @@ checkVCSServices;
 
 function checkResourceStatus {
 
-echo "-------- The following resources are faulted.....---------"
+echo -e "${RED}-------- The following resources are faulted --------${RESET}"
 for res in `hares -list State=FAULTED| cut -f 1`
 do
-echo "--------------------------------------------------------------------"
+echo "----------------------------------------------------------"
+echo -e "${RED}------------------------- FAULTED-------------------------${RESET}"
 echo "Resource: $res" which belongs to Service group: `hares -value $res Group`
 ResourceType=`hares -value $res Type`
+echo "Resource Type: $ResourceType"
 
 function isDGimported {
       echo "Checking if Disk group is imported..."
@@ -117,7 +121,7 @@ function isDGimported {
 
 
       else
-        echo "The diskgroup is not imported, it might be imported in another node"
+        echo -e "${RED}The diskgroup is not imported, it might be imported in another node${RESET}"
         read -p  "Do you want me to try importing it to this node?" -n 1 -r
         if [[ $REPLY =~ ^[Yy]$ ]]
         then
@@ -126,7 +130,7 @@ function isDGimported {
             echo "It seems that now $ResourceDiskgroup is imported"
 
           else
-            echo "It seems that its still not imported, Try deporting from other nodes first"
+            echo -e "${RED}It seems that its still not imported, Try deporting from other nodes first${RESET}"
           fi
         fi
       fi
@@ -135,14 +139,14 @@ function isDGimported {
 function ismounted {
       echo "Checking if Filesystem is mounted"
       if [ df -h $ResourceMountpoint ]; then
-       echo "The Filesystem is mounted"
+       echo -e "${GREEN}The Filesystem is mounted${RESET}"
       else
-       echo "The filesystem is not mounted"
+       echo -e "${RED}The filesystem is not mounted${RESET}"
        echo "We need to check if the mountpoint $ResourceMountpoint  exists"
         if [ $ResourceMountpoint ]; then
-          echo "The mountpoint/folder $ResourceMountpoint exists"
+          echo -e "${GREEN}The mountpoint/folder $ResourceMountpoint exists${RESET}"
         else
-          echo "The mountpoint does not exist"
+          echo -e "${RED}The mountpoint does not exist${RESET}"
           echo "This could be either because the folder does not exist or because another 'Mount' dependecy resource is not mounted"
           echo "either, check this mountpoint dependencies"
           hares -dep $res
@@ -154,9 +158,9 @@ function checkResourceDeps {
       for Dep in `hares -dep $res | awk '{split($1,a,/%/); print a[2], $3}' | grep -vi child | sed 's/ //g'`
       do
        if [ `hares -state $Dep | grep -i faulted` ]; then
-         echo "Dependency $Dep is: Faulted"
+         echo -e "Dependency $Dep is:${RED}Faulted${RESET}"
        else
-         echo "Dependency $Dep is: Not Faulted"
+         echo -e "Dependency $Dep is: ${GREEN}Not Faulted${RESET}"
        fi
       done
 }
@@ -164,10 +168,14 @@ function checkResourceDeps {
 
 case $ResourceType in
  Application)
-      echo "Since the Resource $res is of type $ResourceType, Contact Application team"
-      echo "they need to check the scripts `hares -value $res StartProgram` and `hares -value $res StopProgram`"
-      echo "unless there are issues with dependencies of course"
-      echo "if any of these Child Dependencies are faulty, thats probably the problem"
+      echo
+      echo -e "${BLUE}Next steps:${RESET}"
+      echo "If only this $ResourceType resource if faulted then Contact Application team"
+      echo "they need to check the scripts `hares -value $res StartProgram`"
+      echo "and `hares -value $res StopProgram`"
+      echo "Now if this is not the only resource in faulted status then check"
+      echo "if any of the following dependencies is also faulted"
+      echo
       checkResourceDeps
       ;;
 
@@ -189,7 +197,7 @@ case $ResourceType in
 esac
 
 #echo "Removing Faulted Status from Resource... `hares -clear $res"
-echo "--------------------------------------------------------------------"
+echo "-----------------------------------------------------------"
 done
 
 }
