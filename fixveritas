@@ -1,4 +1,3 @@
-
 #!/bin/bash
 # Created by Braulio Vasquez
 # Email: braulio_3ri@hotmail.com
@@ -13,32 +12,70 @@ RESET='\033[0m'
 BLUE='\033[0;34m'
 
 #Using one array for each: vcs modules, packages, files and services
-
-declare -a vcsModules=("vxodm" "vxfs" "vxfen" "gab" "vxspec" "vxio" "vxdmp" "vxcafs" "vxportal" "fdd" "vxfs")
+# ---- Veritas Clustering ----
+declare -a vcsModules=("vxodm" "vxfs" "vxfen" "gab" "vxspec" "vxio" "vxdmp" "vxcafs" "vxportal" "fdd" )
 declare -a vcsServices=("vcs" "vxfen" "gab" "llt")
-
+#declare -a vcsPackages=("")
+#declare -a vcsFiles=("")
+# ---- Veritas Storage Foundation ----
+declare -a volumeManagerModules=("vxio" "vxspec" "vxdmp" "fdd" "veki")
+#declare -a volumeManagerServices=("vxfs.service" "vxfs-boot" "vxodm.service" "dev-vx.mount" "vxpbx_exchanged.service" "vxvm-reconfig.service" "vxvm-recover.service" "vxvm-vxcloud.service" )
+#declare -a volumeManagerPackages=("VRTSvxvm" "VRTSvxfs" "VRTSveki" "VRTSaslapm" "VRTSodm" "VRTSsfcpi" "VRTSspt")
+#declare -a volumeManagerFiles=("/etc/vx/vxfs" "/etc/vx/vxfs-startup")
 
 # Grouping all functions
 
-function checkVCSModules {
-
-echo  "-------- Checking if all modules for VCS are loaded --------"
-for module in ${vcsModules[@]}
-do
- echo "-------- Checking if module " $module " is loaded --------"
-  if [[ `lsmod | grep -w $module` ]];then
-  echo -e "${GREEN}It seems that "$module " is loaded${RESET}"
+function checkProductVersion {
+ echo "------- Checking what veritas product is installed -------"
+ sleep 3
+ clusterPackage=VRTSvcs
+ foundationPackage=VRTSvxfs
+ if [[ -f /opt/VRTSvcs/bin/hastatus &&  -f /sbin/gabconfig  &&  -f /sbin/lltconfig ]] ;then
+   VERSION=$(rpm -q --queryformat "%{VERSION}\n" $clusterPackage)
+   PRODUCT=$(rpm -qi $clusterPackage | grep -i Summary | cut -f 2 -d:)
+   echo "The following Veritas product is installed:"
+   echo "$PRODUCT: $VERSION"
+   product="vcs"
+   checkModules $product
  else
-  echo -e "${RED}Module: "$module" is not loaded${RESET}"
+   VERSION=$(rpm -q --queryformat "%{VERSION}\n" $foundationPackage)
+   PRODUCT=$(rpm -qi $foundationPackage | grep -i Summary | cut -f 2 -d:)
+   echo "It seems that 'Veritas Cluster Server is not installed'"
+   echo "Checking if Veritas Volume Manager is installed"
+   if [[ -f /usr/sbin/vxdisk &&  -f /usr/sbin/vxprint  &&  -f /etc/vx/volboot ]] ;then
+   echo "The following Veritas product is installed\n: $PRODUCT: $VERSION"
+   product="foundation"
+   checkModules $product
+   else
+     echo "It seems that 'Veritas in NOT  installed'"
+   fi
+ fi
+}
+
+function checkModules {
+if [[ $product == "vcs"  ]];then
+ arrayModules=${vcsModules[@]}
+else
+ arrayModules=${volumeManagerModules[@]}
+fi
+
+echo  "-------- Checking if all modules are loaded --------"
+sleep 3
+for module in $arrayModules
+do
+  if [[ `lsmod | grep -w $module` ]];then
+  echo -e "${GREEN}It seems that module: "$module " is loaded${RESET}"
+ else
+  echo -e "${RED}It seems that module: "$module" is NOT loaded${RESET}"
   kofile=($module.ko)
-  echo "--- Checking if the ko file exists for module" $module " on the Server ---"
+  echo "--- Checking if the ko file exists for module $module on the Server ---"
     if [[ `find  /lib/modules/$(uname -r)/veritas/ -iname $kofile`  ]];then
-    echo "The module file: "$kofile "exists, we just need to load it..."
-    echo "Loading module: "$module " now"
+    echo "--- The module file: $kofile exists, we just need to load it..."
+    echo "--- Loading module: $module now"
 #    modprobe $module
     else
-     echo -e "${RED}The file " $kofile "does not exist for module${RESET}" $module
-     echo "You need to run the veritas script which will install all missing files/modules"
+     echo -e "${RED}--- The file $kofile "does not exist for module${RESET}" $module"
+     echo "--- The veritas script needs to be ran to install all missing files/modules"
     fi
  fi
 done
@@ -102,20 +139,9 @@ echo "-------- Showing VCS related services status....-------- "
 checkVCSServices;
 }
 
-function checkResourceStatus {
-
-echo -e "${RED}-------- The following resources are faulted --------${RESET}"
-for res in `hares -list State=FAULTED| cut -f 1`
-do
-echo "----------------------------------------------------------"
-echo -e "${RED}------------------------- FAULTED-------------------------${RESET}"
-echo "Resource: $res" which belongs to Service group: `hares -value $res Group`
-ResourceType=`hares -value $res Type`
-echo "Resource Type: $ResourceType"
-
 function isDGimported {
       echo "Checking if Disk group is imported..."
-      if [ `vxdg list | grep $ResourceDiskgroup` ]; then
+      if [[ `vxdg list | grep $ResourceDiskgroup` ]]; then
         echo "Disk group $ResourceDiskgroup is imported"
         echo "Starting all volumes for Diskgroup $ResourceDiskgroup `vxvol -g $ResourceDiskgroup startall`"
 
@@ -126,7 +152,7 @@ function isDGimported {
         if [[ $REPLY =~ ^[Yy]$ ]]
         then
         echo "Importing $ResourceDiskgroup... `vxdg import $ResourceDiskgroup`"
-          if [ `vxdg list | grep $ResourceDiskgroup` ]; then
+          if [[ `vxdg list | grep $ResourceDiskgroup` ]]; then
             echo "It seems that now $ResourceDiskgroup is imported"
 
           else
@@ -143,11 +169,11 @@ function ismounted {
       else
        echo -e "${RED}The filesystem is not mounted${RESET}"
        echo "We need to check if the mountpoint $ResourceMountpoint  exists"
-        if [ $ResourceMountpoint ]; then
+        if [[ $ResourceMountpoint ]]; then
           echo -e "${GREEN}The mountpoint/folder $ResourceMountpoint exists${RESET}"
         else
           echo -e "${RED}The mountpoint does not exist${RESET}"
-          echo "This could be either because the folder does not exist or because another 'Mount' dependecy resource is not mounted"
+          echo "This could be either because the folder does not exist or because another 'Mount' dependency resource is not mounted"
           echo "either, check this mountpoint dependencies"
           hares -dep $res
         fi
@@ -157,15 +183,15 @@ function ismounted {
 function checkResourceDeps {
       for Dep in `hares -dep $res | awk '{split($1,a,/%/); print a[2], $3}' | grep -vi child | sed 's/ //g'`
       do
-       if [ `hares -state $Dep | grep -i faulted` ]; then
-         echo -e "Dependency $Dep is:${RED}Faulted${RESET}"
+       if [[ `hares -state $Dep | grep -i faulted` ]]; then
+         echo -e "Dependency $Dep of type: $ResourceType is: ${RED}Faulted${RESET}"
        else
-         echo -e "Dependency $Dep is: ${GREEN}Not Faulted${RESET}"
+         echo -e "Dependency $Dep of type: $ResourceType is: ${GREEN}Not Faulted${RESET}"
        fi
       done
 }
 
-
+function resourceTypeFunction  {
 case $ResourceType in
  Application)
       echo
@@ -175,17 +201,18 @@ case $ResourceType in
       echo "and `hares -value $res StopProgram`"
       echo "Now if this is not the only resource in faulted status then check"
       echo "if any of the following dependencies is also faulted"
-      echo
-      checkResourceDeps
+      checkResourceDeps $res $ResourceType
       ;;
 
 
  Mount)
       ResourceMountpoint=`hares -value $res MountPoint`
+      ResourceBlockdevice=`hares -value $res BlockDevice`
       echo "Since the Resource $res is of type $ResourceType, This is what we need to do:"
       ismounted # Calling function to check if this is mounted
       echo "Second, we need to check if the Disk group $ResourceDiskgroup where this mounts is imported"
-      isDGimportedi # Calling function to check if the disk group is imported
+      ResourceDiskgroup=`hares -value $res BlockDevice | cut -f5 -d/`
+      isDGimported $ResourceDiskgroup # Calling function to check if the disk group is imported
       ;;
 
  DiskGroup)
@@ -195,26 +222,51 @@ case $ResourceType in
       isDGimported
       ;;
 esac
+}
 
+function checkResourceStatus {
+echo "CALLING checkResourceStatus FUNCTION "
+echo -e "${RED}-------- The following resources are faulted --------${RESET}"
+for res in `hares -list State=FAULTED| cut -f 1`
+do
+echo "----------------------------------------------------------"
+echo -e "${RED}------------------------- FAULTED-------------------------${RESET}"
+echo "Resource: $res" which belongs to Service group: `hares -value $res Group`
+ResourceType=`hares -value $res Type`
+echo "Resource Type: $ResourceType"
+resourceTypeFunction $ResourceType
 #echo "Removing Faulted Status from Resource... `hares -clear $res"
 echo "-----------------------------------------------------------"
 done
-
 }
+
+function checkSGResources (){
+echo "Type the name of a service group"
+read serviceGroup
+
+for res in `hares -list State=FAULTED Group=$serviceGroup | cut -f 1`
+do
+echo -e "Resource name=$res is ${RED}FAULTED${RESET} in Service group $serviceGroup"
+ResourceType=`hares -value $res Type`
+resourceTypeFunction $ResourceType
+echo
+done
+}
+
 
 echo "Select one of the options below:"
 echo "1 - Check if VCS modules are loaded"
 echo "2 - Check if neccesary VCS files are present on the OS."
 echo "3 - Check if VCS services are running"
-echo "4 - Check what Veritas product is installed"
-echo "5 - Check VCS variables"
-echo "6 - Check FAULTED resources"
+echo "4 - Check VCS variables"
+echo "5 - Check FAULTED resources"
+echo "6 - Check FAULTED Service groups"
 read response;
 case $response in
-1) checkVCSModules;;
+1) checkProductVersion;;
 2) checkVCSFiles;;
 3) checkVCSServices;;
-4) checkVCSRPMs;;
-5) checkVCSVariables;;
-6) checkResourceStatus;;
+4) checkVCSVariables;;
+5) checkResourceStatus;;
+6) checkSGResources;;
 esac
