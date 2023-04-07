@@ -222,7 +222,9 @@ case $ResourceType in
       ResourceMountpoint=$(hares -value $res MountPoint)
       ResourceBlockdevice=$(hares -value $res BlockDevice)
       echo "Since the Resource $res is of type $ResourceType, This is what we need to do:"
-      ismounted # Calling function to check if this is mounted
+      echo "The mountpoint where this FS mounts is $ResourceMountpoint"
+      echo "The Block Device/ Volume where this FS mounts is $ResourceBlockdevice"
+      is_fs_mounted $ResourceMountpoint # Calling function to check if this is mounted
       echo "Second, we need to check if the Disk group $ResourceDiskgroup where this mounts is imported"
       ResourceDiskgroup=$(hares -value $res BlockDevice | cut -f5 -d/)
       is_dg_imported $ResourceDiskgroup # Calling function to check if the disk group is imported
