@@ -37,7 +37,7 @@ declare -a volumeManagerModules=("vxio" "vxspec" "vxdmp" "fdd" "veki")
    echo "The following Veritas product is installed:"
    echo "$PRODUCT: $VERSION"
    product="vcs"
-   checkModules $product
+   check_modules $product
  else
    VERSION=$(rpm -q --queryformat "%{VERSION}\n" $foundationPackage)
    PRODUCT=$(rpm -qi $foundationPackage | grep -i Summary | cut -f 2 -d:)
@@ -46,7 +46,7 @@ declare -a volumeManagerModules=("vxio" "vxspec" "vxdmp" "fdd" "veki")
    if [[ -f /usr/sbin/vxdisk &&  -f /usr/sbin/vxprint  &&  -f /etc/vx/volboot ]] ;then
    echo "The following Veritas product is installed\n: $PRODUCT: $VERSION"
    product="foundation"
-   checkModules $product
+   check_modules $product
    else
      echo "It seems that 'Veritas in NOT  installed'"
    fi
@@ -114,7 +114,7 @@ sed -i 's/VXFEN_STOP=0/VXFEN_STOP=1/g' /etc/sysconfig/vxfen
 }
 
 #### Function to check if all VCS services are running ####
-check_vcs_services {
+check_vcs_services () {
 echo "-------- Checking  all VCS related services status --------"
 for service in ${vcsServices[@]}
 do
@@ -147,7 +147,7 @@ check_vcs_services;
 
 #### Function to check if an specific Disk group is imported , Called by Function : resourceTypeFunction  ####
 
-is_dg_imported {
+is_dg_imported () {
       echo "Checking if Disk group is imported..."
       if [[ $(vxdg list | grep $ResourceDiskgroup) ]]; then
         echo "Disk group $ResourceDiskgroup is imported"
@@ -286,3 +286,4 @@ case $response in
 5) check_resource_status;;
 6) check_sg_resources;;
 esac
+
