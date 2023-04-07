@@ -25,7 +25,8 @@ declare -a volumeManagerModules=("vxio" "vxspec" "vxdmp" "fdd" "veki")
 
 # Grouping all functions
 
-function checkProductVersion {
+#### Function to check what Veritas product is installed ####
+ check_product_version () {
  echo "------- Checking what veritas product is installed -------"
  sleep 3
  clusterPackage=VRTSvcs
@@ -52,7 +53,8 @@ function checkProductVersion {
  fi
 }
 
-function checkModules {
+#### Function to check if modules are loaded for the specific version ####
+check_modules () {
 if [[ $product == "vcs"  ]];then
  arrayModules=${vcsModules[@]}
 else
@@ -80,8 +82,9 @@ do
  fi
 done
 }
+#### Function to check if all veritas variables have the right value in veritas VCS files ####
 
-function checkVCSVariables {
+check_vcs_variables () {
 
 echo "The following variables should have a value of "1" in the config files"
 echo "In file /etc/sysconfig/llt"
@@ -110,7 +113,8 @@ sed -i 's/VXFEN_STOP=0/VXFEN_STOP=1/g' /etc/sysconfig/vxfen
 
 }
 
-function checkVCSServices {
+#### Function to check if all VCS services are running ####
+check_vcs_services {
 echo "-------- Checking  all VCS related services status --------"
 for service in ${vcsServices[@]}
 do
@@ -118,7 +122,9 @@ service $service status
 done
 }
 
-function restartingVCSservices {
+#### Function to restart VCS Services ####
+
+restarting_vcs_services() {
 echo "-------- Restarting all VCS related services in the correct order --------"
 for service in ${vcsServices[@]}
 do
@@ -136,10 +142,12 @@ gabconfig -c
 
 echo "-------- Showing VCS related services status....-------- "
 
-checkVCSServices;
+check_vcs_services;
 }
 
-function isDGimported {
+#### Function to check if an specific Disk group is imported , Called by Function : resourceTypeFunction  ####
+
+is_dg_imported {
       echo "Checking if Disk group is imported..."
       if [[ `vxdg list | grep $ResourceDiskgroup` ]]; then
         echo "Disk group $ResourceDiskgroup is imported"
@@ -162,7 +170,9 @@ function isDGimported {
       fi
 }
 
-function ismounted {
+#### Function to check if an specific Filesystem is Mounted , Called by Function : resourceTypeFunction  ####
+
+is_fs_mounted () {
       echo "Checking if Filesystem is mounted"
       if [ df -h $ResourceMountpoint ]; then
        echo -e "${GREEN}The Filesystem is mounted${RESET}"
@@ -180,7 +190,8 @@ function ismounted {
       fi
 }
 
-function checkResourceDeps {
+#### Function to check the Dependencies of a specific Resource  ####
+check_resource_deps () {
       for Dep in `hares -dep $res | awk '{split($1,a,/%/); print a[2], $3}' | grep -vi child | sed 's/ //g'`
       do
        if [[ `hares -state $Dep | grep -i faulted` ]]; then
@@ -191,7 +202,9 @@ function checkResourceDeps {
       done
 }
 
-function resourceTypeFunction  {
+#### Function to The type of a resource which can be used to know how to tacke the issue at hand  ####
+
+resource_type ()  {
 case $ResourceType in
  Application)
       echo
@@ -201,7 +214,7 @@ case $ResourceType in
       echo "and `hares -value $res StopProgram`"
       echo "Now if this is not the only resource in faulted status then check"
       echo "if any of the following dependencies is also faulted"
-      checkResourceDeps $res $ResourceType
+      check_resource_deps $res $ResourceType
       ;;
 
 
@@ -212,19 +225,20 @@ case $ResourceType in
       ismounted # Calling function to check if this is mounted
       echo "Second, we need to check if the Disk group $ResourceDiskgroup where this mounts is imported"
       ResourceDiskgroup=`hares -value $res BlockDevice | cut -f5 -d/`
-      isDGimported $ResourceDiskgroup # Calling function to check if the disk group is imported
+      is_dg_imported $ResourceDiskgroup # Calling function to check if the disk group is imported
       ;;
 
  DiskGroup)
       ResourceDiskgroup=`hares -value $res BlockDevice | cut -f5 -d/`
       echo "Since the Resource $res is of type $ResourceType, This is what we need to do:"
       echo "Is the Disk group $ResourceDiskgroup imported?"
-      isDGimported
+      is_dg_imported
       ;;
 esac
 }
+#### Function to check the status of all resources   ####
 
-function checkResourceStatus {
+check_resource_status () {
 echo "CALLING checkResourceStatus FUNCTION "
 echo -e "${RED}-------- The following resources are faulted --------${RESET}"
 for res in `hares -list State=FAULTED| cut -f 1`
@@ -234,13 +248,15 @@ echo -e "${RED}------------------------- FAULTED-------------------------${RESET
 echo "Resource: $res" which belongs to Service group: `hares -value $res Group`
 ResourceType=`hares -value $res Type`
 echo "Resource Type: $ResourceType"
-resourceTypeFunction $ResourceType
+resource_type $ResourceType
 #echo "Removing Faulted Status from Resource... `hares -clear $res"
 echo "-----------------------------------------------------------"
 done
 }
 
-function checkSGResources (){
+#### Function to check specific resources for a given Service group  ####
+
+check_sg_resources (){
 echo "Type the name of a service group"
 read serviceGroup
 
@@ -248,7 +264,7 @@ for res in `hares -list State=FAULTED Group=$serviceGroup | cut -f 1`
 do
 echo -e "Resource name=$res is ${RED}FAULTED${RESET} in Service group $serviceGroup"
 ResourceType=`hares -value $res Type`
-resourceTypeFunction $ResourceType
+resource_type $ResourceType
 echo
 done
 }
@@ -263,10 +279,10 @@ echo "5 - Check FAULTED resources"
 echo "6 - Check FAULTED Service groups"
 read response;
 case $response in
-1) checkProductVersion;;
-2) checkVCSFiles;;
-3) checkVCSServices;;
-4) checkVCSVariables;;
-5) checkResourceStatus;;
-6) checkSGResources;;
+1) check_product_version;;
+2) check_vcs_files;;
+3) check_vcs_services;;
+4) check_vcs_variables;;
+5) check_resource_status;;
+6) check_sg_resources;;
 esac
