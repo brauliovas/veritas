@@ -65,13 +65,13 @@ echo  "-------- Checking if all modules are loaded --------"
 sleep 3
 for module in $arrayModules
 do
-  if [[ `lsmod | grep -w $module` ]];then
+  if [[ $(lsmod | grep -w $module) ]];then
   echo -e "${GREEN}It seems that module: "$module " is loaded${RESET}"
  else
   echo -e "${RED}It seems that module: "$module" is NOT loaded${RESET}"
   kofile=($module.ko)
   echo "--- Checking if the ko file exists for module $module on the Server ---"
-    if [[ `find  /lib/modules/$(uname -r)/veritas/ -iname $kofile`  ]];then
+    if [[ $(find  /lib/modules/$(uname -r)/veritas/ -iname $kofile)  ]];then
     echo "--- The module file: $kofile exists, we just need to load it..."
     echo "--- Loading module: $module now"
 #    modprobe $module
@@ -149,7 +149,7 @@ check_vcs_services;
 
 is_dg_imported {
       echo "Checking if Disk group is imported..."
-      if [[ `vxdg list | grep $ResourceDiskgroup` ]]; then
+      if [[ $(vxdg list | grep $ResourceDiskgroup) ]]; then
         echo "Disk group $ResourceDiskgroup is imported"
         echo "Starting all volumes for Diskgroup $ResourceDiskgroup `vxvol -g $ResourceDiskgroup startall`"
 
@@ -160,7 +160,7 @@ is_dg_imported {
         if [[ $REPLY =~ ^[Yy]$ ]]
         then
         echo "Importing $ResourceDiskgroup... `vxdg import $ResourceDiskgroup`"
-          if [[ `vxdg list | grep $ResourceDiskgroup` ]]; then
+          if [[ $(vxdg list | grep $ResourceDiskgroup) ]]; then
             echo "It seems that now $ResourceDiskgroup is imported"
 
           else
@@ -192,9 +192,9 @@ is_fs_mounted () {
 
 #### Function to check the Dependencies of a specific Resource  ####
 check_resource_deps () {
-      for Dep in `hares -dep $res | awk '{split($1,a,/%/); print a[2], $3}' | grep -vi child | sed 's/ //g'`
+      for Dep in $(hares -dep $res | awk '{split($1,a,/%/); print a[2], $3}' | grep -vi child | sed 's/ //g')
       do
-       if [[ `hares -state $Dep | grep -i faulted` ]]; then
+       if [[ $(hares -state $Dep | grep -i faulted) ]]; then
          echo -e "Dependency $Dep of type: $ResourceType is: ${RED}Faulted${RESET}"
        else
          echo -e "Dependency $Dep of type: $ResourceType is: ${GREEN}Not Faulted${RESET}"
@@ -219,17 +219,17 @@ case $ResourceType in
 
 
  Mount)
-      ResourceMountpoint=`hares -value $res MountPoint`
-      ResourceBlockdevice=`hares -value $res BlockDevice`
+      ResourceMountpoint=$(hares -value $res MountPoint)
+      ResourceBlockdevice=$(hares -value $res BlockDevice)
       echo "Since the Resource $res is of type $ResourceType, This is what we need to do:"
       ismounted # Calling function to check if this is mounted
       echo "Second, we need to check if the Disk group $ResourceDiskgroup where this mounts is imported"
-      ResourceDiskgroup=`hares -value $res BlockDevice | cut -f5 -d/`
+      ResourceDiskgroup=$(hares -value $res BlockDevice | cut -f5 -d/)
       is_dg_imported $ResourceDiskgroup # Calling function to check if the disk group is imported
       ;;
 
  DiskGroup)
-      ResourceDiskgroup=`hares -value $res BlockDevice | cut -f5 -d/`
+      ResourceDiskgroup=$(hares -value $res BlockDevice | cut -f5 -d/)
       echo "Since the Resource $res is of type $ResourceType, This is what we need to do:"
       echo "Is the Disk group $ResourceDiskgroup imported?"
       is_dg_imported
@@ -241,12 +241,12 @@ esac
 check_resource_status () {
 echo "CALLING checkResourceStatus FUNCTION "
 echo -e "${RED}-------- The following resources are faulted --------${RESET}"
-for res in `hares -list State=FAULTED| cut -f 1`
+for res in $(hares -list State=FAULTED| cut -f 1)
 do
 echo "----------------------------------------------------------"
 echo -e "${RED}------------------------- FAULTED-------------------------${RESET}"
 echo "Resource: $res" which belongs to Service group: `hares -value $res Group`
-ResourceType=`hares -value $res Type`
+ResourceType=$(hares -value $res Type)
 echo "Resource Type: $ResourceType"
 resource_type $ResourceType
 #echo "Removing Faulted Status from Resource... `hares -clear $res"
@@ -260,10 +260,10 @@ check_sg_resources (){
 echo "Type the name of a service group"
 read serviceGroup
 
-for res in `hares -list State=FAULTED Group=$serviceGroup | cut -f 1`
+for res in $(hares -list State=FAULTED Group=$serviceGroup | cut -f 1)
 do
 echo -e "Resource name=$res is ${RED}FAULTED${RESET} in Service group $serviceGroup"
-ResourceType=`hares -value $res Type`
+ResourceType=$(hares -value $res Type)
 resource_type $ResourceType
 echo
 done
